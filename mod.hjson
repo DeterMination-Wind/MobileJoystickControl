@@ -1,0 +1,10 @@
+displayName: "Mobile Joystick Control 移动摇杆操控"
+name: "MobileJoystickControl"
+author: "DeterMination"
+main: "mobilejoystickcontrol.MobileJoystickControlMod"
+description: "Minecraft PE style mobile joystick control for player units with movement scaling, boost toggle, and dual/single-stick shooting modes. / 提供类似 Minecraft 手机端的摇杆操控：按幅度移动、Boost 切换、双摇杆或单摇杆开火。"
+version: "1.0.1"
+minGameVersion: 154
+java: true
+hidden: true
+repo: "DeterMination-Wind/MobileJoystickControl"

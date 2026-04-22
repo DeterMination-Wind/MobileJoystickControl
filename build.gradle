@@ -1,0 +1,198 @@
+plugins{
+    id "java"
+}
+
+group = "mobilejoystickcontrol"
+version = "1.0.0"
+
+sourceSets.main.java.srcDirs = ["src"]
+
+def mindustryVersion = (findProperty("mindustryVersion") ?: "v155.4").toString()
+def jabelVersion = "93fde537c7"
+
+repositories{
+    mavenCentral()
+    maven{ url "https://jitpack.io" }
+    maven{ url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }
+}
+
+dependencies{
+    compileOnly "com.github.Anuken.Arc:arc-core:$mindustryVersion"
+    compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+    annotationProcessor "com.github.Anuken:jabel:$jabelVersion"
+}
+
+java{
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(JavaCompile).configureEach{
+    options.encoding = "UTF-8"
+    // Mindustry Android requires Java 8 bytecode.
+    if(JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_1_9)){
+        options.release.set(8)
+    }
+}
+
+configurations.configureEach{
+    resolutionStrategy.eachDependency { details ->
+        if(details.requested.group == "com.github.Anuken.Arc"){
+            details.useVersion mindustryVersion
+        }
+    }
+}
+
+tasks.withType(Jar).configureEach{
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+jar{
+    archiveFileName = "${project.name}Desktop.jar"
+    from(sourceSets.main.output)
+    from(projectDir){
+        include "mod.hjson"
+        include "mod.json"
+    }
+    from("assets"){
+        include "**"
+    }
+}
+
+def isWindows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
+
+def findD8 = {
+    def explicit = System.getenv("D8_PATH")
+    if(explicit){
+        def file = new File(explicit)
+        if(file.exists()) return file
+    }
+
+    def sdkRoot = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME")
+    if(sdkRoot){
+        def buildTools = new File(sdkRoot, "build-tools")
+        if(buildTools.isDirectory()){
+            def exeName = isWindows ? "d8.bat" : "d8"
+            def candidates = (buildTools.listFiles() ?: [])
+                .findAll{ it.isDirectory() }
+                .sort{ a, b -> b.name <=> a.name }
+            for(def dir : candidates){
+                def exe = new File(dir, exeName)
+                if(exe.exists()) return exe
+            }
+        }
+    }
+
+    if(isWindows){
+        // Same fallback style Neon uses in this workspace.
+        def workspaceRoot = rootDir.parentFile
+        def cmdToolsDirs = (workspaceRoot.listFiles() ?: [])
+            .findAll{ it.isDirectory() && it.name.startsWith("commandlinetools-win-") }
+            .sort{ a, b -> b.name <=> a.name }
+        for(def dir : cmdToolsDirs){
+            def exe = new File(dir, "cmdline-tools/bin/d8.bat")
+            if(exe.exists()) return exe
+        }
+    }
+
+    return null
+}
+
+def findAndroidJar = {
+    def sdkRoot = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME")
+    if(!sdkRoot) return null
+
+    def platformsDir = new File(sdkRoot, "platforms")
+    if(!platformsDir.isDirectory()) return null
+
+    def candidates = (platformsDir.listFiles() ?: [])
+        .findAll{ it.isDirectory() && new File(it, "android.jar").exists() }
+        .sort{ a, b -> b.name <=> a.name }
+
+    return candidates.isEmpty() ? null : new File(candidates.first(), "android.jar")
+}
+
+def androidDexOutDir = layout.buildDirectory.dir("d8").get().asFile
+
+tasks.register("d8InputJar", Jar){
+    group = "build"
+    description = "Builds a jar used only as input for D8 (no dist side effects)."
+    dependsOn tasks.named("classes")
+    archiveFileName = "${project.name}-d8-input.jar"
+    destinationDirectory = layout.buildDirectory.dir("d8-input")
+    from(sourceSets.main.output)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register("dexAndroid", Exec){
+    group = "build"
+    description = "Compiles Java bytecode into classes.dex for Mindustry Android mod loading."
+    dependsOn tasks.named("d8InputJar")
+
+    doFirst{
+        def d8 = findD8()
+        if(d8 == null){
+            throw new GradleException("D8 not found. Set ANDROID_SDK_ROOT/ANDROID_HOME or D8_PATH, or keep commandlinetools-win-* in workspace root.")
+        }
+
+        delete(androidDexOutDir)
+        androidDexOutDir.mkdirs()
+
+        def programZip = tasks.named("d8InputJar").get().archiveFile.get().asFile
+        commandLine d8.absolutePath
+        args "--min-api", "14", "--release", "--output", androidDexOutDir.absolutePath
+        def androidJar = findAndroidJar()
+        if(androidJar != null){
+            args "--lib", androidJar.absolutePath
+        }
+        configurations.compileClasspath.files.each{ file ->
+            args "--classpath", file.absolutePath
+        }
+        args programZip.absolutePath
+    }
+}
+
+tasks.register("jarAndroid", Jar){
+    group = "build"
+    description = "Packages Android mod jar with classes.dex."
+    dependsOn tasks.named("dexAndroid")
+    archiveFileName = "${project.name}Android.jar"
+    destinationDirectory = layout.buildDirectory.dir("libs")
+    from(androidDexOutDir){
+        include "classes.dex"
+    }
+    from(projectDir){
+        include "mod.hjson"
+        include "mod.json"
+    }
+    from("assets"){
+        include "**"
+    }
+}
+
+tasks.register("jarMerged", Jar){
+    group = "build"
+    description = "Packages a single jar for both desktop and Android."
+    dependsOn tasks.named("classes")
+    dependsOn tasks.named("dexAndroid")
+    archiveFileName = "${project.name}.jar"
+    destinationDirectory = layout.buildDirectory.dir("libs")
+    from(sourceSets.main.output)
+    from(androidDexOutDir){
+        include "classes.dex"
+    }
+    from(projectDir){
+        include "mod.hjson"
+        include "mod.json"
+    }
+    from("assets"){
+        include "**"
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register("deploy"){
+    group = "build"
+    description = "Builds merged desktop+android jar artifact."
+    dependsOn tasks.named("jarMerged")
+}
