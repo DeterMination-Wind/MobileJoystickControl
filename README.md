@@ -1,7 +1,7 @@
 # MobileJoystickControl
 
 `移动摇杆操控 / Mobile Joystick Control`
-
+![alt text](c57a87c3ab333bfa48fa4775136ec255.jpeg)
 A Mindustry Java client mod that provides Minecraft PE style on-screen controls for player units on mobile:
 
 - Left stick movement with analog speed scaling.
