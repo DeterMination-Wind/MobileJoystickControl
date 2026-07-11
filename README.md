@@ -1,4 +1,10 @@
 # MobileJoystickControl
+<h1 align="center">
+  <a href="https://github.com/DeterMination-Wind/MobileJoystickControl/releases/latest"><img src="https://img.shields.io/github/v/release/DeterMination-Wind/MobileJoystickControl?display_name=release&label=Latest%20Release&color=green"></a>
+  <a href="https://github.com/DeterMination-Wind/MobileJoystickControl/releases"><img src="https://img.shields.io/github/downloads/DeterMination-Wind/MobileJoystickControl/total?label=Downloads&color=blue"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/DeterMination-Wind/MobileJoystickControl?label=License"></a>
+  <a href="https://github.com/DeterMination-Wind/MobileJoystickControl"><img src="https://img.shields.io/github/stars/DeterMination-Wind/MobileJoystickControl?style=flat&label=Star%20this%20mod!&color=yellow"></a>
+</h1>
 
 `移动摇杆操控 / Mobile Joystick Control`
 ![alt text](c57a87c3ab333bfa48fa4775136ec255.jpeg)
