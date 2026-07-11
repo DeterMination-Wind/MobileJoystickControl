@@ -11,6 +11,8 @@ def mindustryVersion = (findProperty("mindustryVersion") ?: "v155.4").toString()
 def jabelVersion = "93fde537c7"
 
 repositories{
+    maven{ url "https://maven.aliyun.com/repository/public" }
+    maven{ url "https://maven.aliyun.com/repository/central" }
     mavenCentral()
     maven{ url "https://jitpack.io" }
     maven{ url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }

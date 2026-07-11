@@ -31,6 +31,7 @@ import mindustry.graphics.Pal;
 import mindustry.input.DesktopInput;
 import mindustry.input.MobileInput;
 import mindustry.mod.Mod;
+import mindustry.mod.Mods;
 import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
 import mindustry.ui.dialogs.SettingsMenuDialog;
@@ -44,7 +45,6 @@ public class MobileJoystickControlMod extends Mod{
     private static final String keyEnabled = "mjc-enabled";
     private static final String keyEditLayout = "mjc-edit-layout";
     private static final String keyDualStickMode = "mjc-dual-stick-mode";
-    private static final String keyUseRightStick = "mjc-use-right-stick";
     private static final String keyDebugDesktop = "mjc-debug-desktop";
     private static final String keyDeadzone = "mjc-deadzone";
     private static final String keyHudAlpha = "mjc-hud-alpha";
@@ -89,6 +89,9 @@ public class MobileJoystickControlMod extends Mod{
     private Label editBarLabel;
     private Slider editBarSlider;
     private boolean syncingEditBar;
+    private boolean hudVisibilityInitialized;
+    private boolean lastHudShown;
+    private boolean uiRefreshQueued;
 
     public MobileJoystickControlMod(){
         setupDefaults();
@@ -98,17 +101,18 @@ public class MobileJoystickControlMod extends Mod{
             ensureSettingsCategory();
             ensureInputOverride();
             if(runtimeEnabled()){
-                Time.runTask(10f, this::ensureOverlayAttached);
+                requestUiRefresh(10f);
             }
         });
 
         Events.on(WorldLoadEvent.class, e -> {
             if(headless || !runtimeEnabled()) return;
-            Time.runTask(10f, this::ensureOverlayAttached);
+            requestUiRefresh(10f);
         });
 
         Events.on(ResetEvent.class, e -> {
             if(overlay != null) overlay.resetTouchState(true);
+            requestUiRefresh(1f);
         });
 
         Events.run(Trigger.update, () -> {
@@ -117,6 +121,7 @@ public class MobileJoystickControlMod extends Mod{
             if(runtimeEnabled()){
                 ensureOverlayAttached();
                 ensureEditBarAttached();
+                updateHudVisibility();
             }
             syncEditBarState();
         });
@@ -126,7 +131,6 @@ public class MobileJoystickControlMod extends Mod{
         Core.settings.defaults(keyEnabled, true);
         Core.settings.defaults(keyEditLayout, false);
         Core.settings.defaults(keyDualStickMode, true);
-        Core.settings.defaults(keyUseRightStick, true);
         Core.settings.defaults(keyDebugDesktop, false);
         Core.settings.defaults(keyDeadzone, 18);
         Core.settings.defaults(keyHudAlpha, 90);
@@ -160,7 +164,6 @@ public class MobileJoystickControlMod extends Mod{
         table.checkPref(keyEnabled, true);
         table.checkPref(keyEditLayout, false);
         table.checkPref(keyDualStickMode, true);
-        table.checkPref(keyUseRightStick, true);
         table.checkPref(keyDebugDesktop, false);
         table.sliderPref(keyDeadzone, 18, 0, 45, 1, v -> v + "%");
         table.sliderPref(keyHudAlpha, 90, 20, 100, 1, v -> v + "%");
@@ -230,11 +233,18 @@ public class MobileJoystickControlMod extends Mod{
 
     private void ensureOverlayAttached(){
         if(ui == null || ui.hudGroup == null) return;
+        if(overlay != null && overlay.parent == ui.hudGroup) return;
 
         Element existing = ui.hudGroup.find(overlayName);
-        if(existing instanceof JoystickOverlay){
+        if(existing instanceof JoystickOverlay && existing.parent == ui.hudGroup){
             overlay = (JoystickOverlay)existing;
             return;
+        }
+
+        if(overlay != null){
+            overlay.resetTouchState(true);
+            overlay.remove();
+            overlay = null;
         }
 
         if(existing != null){
@@ -250,12 +260,14 @@ public class MobileJoystickControlMod extends Mod{
 
     private void ensureEditBarAttached(){
         if(ui == null || ui.hudGroup == null) return;
-        if(editBar != null && editBar.parent != null) return;
+        if(editBar != null && editBar.parent == ui.hudGroup) return;
 
         Element existing = ui.hudGroup.find(editBarName);
-        if(existing instanceof Table){
-            editBar = (Table)existing;
-            return;
+        if(editBar != null){
+            editBar.remove();
+            editBar = null;
+            editBarLabel = null;
+            editBarSlider = null;
         }
 
         if(existing != null){
@@ -266,7 +278,7 @@ public class MobileJoystickControlMod extends Mod{
         editBar.name = editBarName;
         editBar.setFillParent(true);
         editBar.top();
-        editBar.touchable = Touchable.enabled;
+        editBar.touchable = Touchable.childrenOnly;
 
         Table content = new Table(Styles.black6);
         content.margin(8f);
@@ -285,6 +297,54 @@ public class MobileJoystickControlMod extends Mod{
         ui.hudGroup.addChild(editBar);
     }
 
+    private void updateHudVisibility(){
+        boolean hudShown = ui != null && ui.hudfrag != null && ui.hudfrag.shown;
+        if(!hudVisibilityInitialized){
+            hudVisibilityInitialized = true;
+            lastHudShown = hudShown;
+            return;
+        }
+
+        if(hudShown == lastHudShown) return;
+        lastHudShown = hudShown;
+
+        if(overlay != null){
+            overlay.resetTouchState(true);
+        }
+
+        if(hudShown){
+            requestUiRefresh(1f);
+        }
+    }
+
+    private void requestUiRefresh(float delay){
+        if(headless || uiRefreshQueued) return;
+        uiRefreshQueued = true;
+        Time.runTask(delay, () -> {
+            uiRefreshQueued = false;
+            if(!runtimeEnabled()) return;
+            rebuildUi();
+        });
+    }
+
+    private void rebuildUi(){
+        if(overlay != null){
+            overlay.resetTouchState(true);
+            overlay.remove();
+            overlay = null;
+        }
+
+        if(editBar != null){
+            editBar.remove();
+            editBar = null;
+            editBarLabel = null;
+            editBarSlider = null;
+        }
+
+        ensureOverlayAttached();
+        ensureEditBarAttached();
+    }
+
     private void syncEditBarState(){
         if(editBar == null) return;
 
@@ -295,7 +355,7 @@ public class MobileJoystickControlMod extends Mod{
             && overlay.hasSelectedControl();
 
         editBar.visible = show;
-        editBar.touchable = show ? Touchable.enabled : Touchable.disabled;
+        editBar.touchable = show ? Touchable.childrenOnly : Touchable.disabled;
         if(!show) return;
 
         syncingEditBar = true;
@@ -346,6 +406,12 @@ public class MobileJoystickControlMod extends Mod{
 
         fillState(state);
 
+        boolean moving = state.moveAmount > 0.0001f;
+        if(!moving && state.wasMoving){
+            unit.vel.setZero();
+        }
+        state.wasMoving = moving;
+
         float speed = unit.speed();
         move.set(state.moveX, state.moveY).scl(speed * state.moveAmount);
         unit.movePref(move);
@@ -359,8 +425,13 @@ public class MobileJoystickControlMod extends Mod{
         player.boosting = canBoost && boostingRequested;
 
         boolean boosted = (unit instanceof Mechc && unit.isFlying());
-        boolean shootRequested = state.shooting && state.hasAim;
-        boolean shooting = shootRequested && !boosted;
+        if(state.shooting && !state.hasAim){
+            state.hasAim = true;
+            state.aimX = Angles.trnsx(unit.rotation, 1f);
+            state.aimY = Angles.trnsy(unit.rotation, 1f);
+        }
+
+        boolean shooting = state.shooting && !boosted;
         player.shooting = shooting;
 
         if(state.hasAim){
@@ -379,7 +450,7 @@ public class MobileJoystickControlMod extends Mod{
             unit.aim(aimX, aimY);
         }
 
-        if(unit.type.omniMovement && shooting && unit.type.hasWeapons() && unit.type.faceTarget && state.hasAim){
+        if(shooting && unit.type.hasWeapons() && unit.type.faceTarget && state.hasAim){
             unit.lookAt(Mathf.angle(state.aimX, state.aimY));
         }else if(!move.isZero(0.0001f)){
             unit.lookAt(move.angle());
@@ -387,7 +458,7 @@ public class MobileJoystickControlMod extends Mod{
             unit.lookAt(unit.prefRotation());
         }
 
-        unit.controlWeapons(true, shooting);
+        unit.controlWeapons(shooting, shooting);
         return true;
     }
 
@@ -408,6 +479,7 @@ public class MobileJoystickControlMod extends Mod{
         boolean hasAim;
         boolean shooting;
         boolean boosting;
+        boolean wasMoving;
 
         void reset(){
             moveX = 0f;
@@ -419,6 +491,10 @@ public class MobileJoystickControlMod extends Mod{
             hasAim = false;
             shooting = false;
             boosting = false;
+        }
+
+        void resetMovementTracking(){
+            wasMoving = false;
         }
     }
 
@@ -435,6 +511,7 @@ public class MobileJoystickControlMod extends Mod{
         @Override
         protected void updateMovement(Unit unit){
             if(!mod.applyOverlayControl(unit, state, move, aim)){
+                state.resetMovementTracking();
                 super.updateMovement(unit);
             }
         }
@@ -453,6 +530,7 @@ public class MobileJoystickControlMod extends Mod{
         @Override
         protected void updateMovement(Unit unit){
             if(!mod.applyOverlayControl(unit, state, move, aim)){
+                state.resetMovementTracking();
                 super.updateMovement(unit);
             }
         }
@@ -537,9 +615,11 @@ public class MobileJoystickControlMod extends Mod{
             boolean visible = mod.shouldOverlayBeVisible();
             this.visible = visible;
             touchable = visible ? Touchable.enabled : Touchable.disabled;
-            if(visible) toFront();
 
             if(visible){
+                if(!Core.settings.getBool(keyEditLayout, false)){
+                    toFront();
+                }
                 updateDesktopPointer();
             }
 
@@ -554,6 +634,10 @@ public class MobileJoystickControlMod extends Mod{
             if(touchable && this.touchable == Touchable.disabled) return null;
 
             if(insideControlArea(x, y)){
+                return this;
+            }
+
+            if(Core.settings.getBool(keyEditLayout, false) && hasSelectedControl()){
                 return this;
             }
 
@@ -620,8 +704,7 @@ public class MobileJoystickControlMod extends Mod{
                 lastAim.set(leftDir);
             }
 
-            boolean useRight = showRightStick();
-            if(useRight){
+            if(showRightStick()){
                 float shootAmount = applyDeadzone(rightAmount, deadzone);
                 if(shootAmount > 0f){
                     out.shooting = true;
@@ -630,18 +713,20 @@ public class MobileJoystickControlMod extends Mod{
                     out.aimY = rightDir.y;
                     lastAim.set(rightDir);
                 }
-            }else if(fireHeld){
+            }
+
+            if(fireHeld){
                 out.shooting = true;
-                if(leftAmount > 0.001f){
+                if(!out.hasAim && leftAmount > 0.001f){
                     out.hasAim = true;
                     out.aimX = leftDir.x;
                     out.aimY = leftDir.y;
                     lastAim.set(leftDir);
-                }else if(!lastAim.isZero(0.001f)){
+                }else if(!out.hasAim && !lastAim.isZero(0.001f)){
                     out.hasAim = true;
                     out.aimX = lastAim.x;
                     out.aimY = lastAim.y;
-                }else if(player != null && player.unit() != null){
+                }else if(!out.hasAim && player != null && player.unit() != null){
                     out.hasAim = true;
                     out.aimX = Angles.trnsx(player.unit().rotation, 1f);
                     out.aimY = Angles.trnsy(player.unit().rotation, 1f);
@@ -674,7 +759,11 @@ public class MobileJoystickControlMod extends Mod{
 
         private boolean touchDownEdit(int pointer, float sx, float sy){
             int target = pickDragTarget(sx, sy);
-            if(target == none) return false;
+            if(target == none){
+                boolean hadSelection = hasSelectedControl() || dragTarget != none;
+                clearEditSelection();
+                return hadSelection;
+            }
 
             selectedTarget = target;
             dragPointer = pointer;
@@ -688,6 +777,13 @@ public class MobileJoystickControlMod extends Mod{
             dragOffsetX = cx - sx;
             dragOffsetY = cy - sy;
             return true;
+        }
+
+        private void clearEditSelection(){
+            dragPointer = -1;
+            dragTarget = none;
+            selectedTarget = none;
+            draggingEdit = false;
         }
 
         private void touchDraggedEdit(int pointer, float sx, float sy){
@@ -925,11 +1021,11 @@ public class MobileJoystickControlMod extends Mod{
         }
 
         private boolean showRightStick(){
-            return Core.settings.getBool(keyDualStickMode, true) && Core.settings.getBool(keyUseRightStick, true);
+            return Core.settings.getBool(keyDualStickMode, true);
         }
 
         private boolean showFireButton(){
-            return !showRightStick();
+            return !Core.settings.getBool(keyDualStickMode, true);
         }
 
         private boolean insideLeftStick(float sx, float sy){
@@ -1065,13 +1161,20 @@ public class MobileJoystickControlMod extends Mod{
         private TextureRegion findRegion(String shortName){
             TextureRegion error = Core.atlas.find("error");
 
+            Mods.LoadedMod loaded = mods == null ? null : mods.getMod(MobileJoystickControlMod.class);
+            if(loaded != null){
+                TextureRegion current = Core.atlas.find(loaded.name + "-" + shortName);
+                if(current != error) return current;
+            }
+
             TextureRegion upper = Core.atlas.find("MobileJoystickControl-" + shortName);
             if(upper != error) return upper;
 
             TextureRegion lower = Core.atlas.find("mobilejoystickcontrol-" + shortName);
             if(lower != error) return lower;
 
-            return upper;
+            TextureRegion plain = Core.atlas.find(shortName);
+            return plain != error ? plain : error;
         }
     }
 }
