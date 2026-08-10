@@ -1,24 +1,26 @@
-﻿# AGENTS.md - MindustryJavaModTemplate 模组说明
+﻿# AGENTS.md - MobileJoystickControl 模组说明
 
 ## 文件结构（当前仓库）
 ```text
-MindustryJavaModTemplate/
+MobileJoystickControl/
 |-- .github/
-|   \-- workflows/
-|       \-- commitTest.yml
 |-- assets/
 |   \-- sprites/
-|       \-- frog.png
+|       |-- mjc-button-boost.png
+|       |-- mjc-button-fire.png
+|       |-- mjc-stick-base.png
+|       \-- mjc-stick-knob.png
 |-- gradle/
 |   \-- wrapper/
 |       |-- gradle-wrapper.jar
 |       \-- gradle-wrapper.properties
 |-- src/
-|   \-- example/
-|       \-- ExampleJavaMod.java
+|   \-- mobilejoystickcontrol/
+|       \-- MobileJoystickControlMod.java
 |-- .gitignore
 |-- AGENTS.md
 |-- build.gradle
+|-- c57a87c3ab333bfa48fa4775136ec255.jpeg
 |-- gradle.properties
 |-- gradlew
 |-- gradlew.bat

@@ -17,6 +17,10 @@ A Mindustry Java client mod that provides Minecraft PE style on-screen controls 
   - Single-stick + fire button.
 - In-game layout edit mode (drag controls on HUD).
 - Position and size sliders for every control in settings.
+- v1.1.0:
+  - Desktop debug mode (`JoystickDesktopInput`) for testing on PC.
+  - Deadzone, HUD opacity, and aim distance sliders in settings.
+  - Size slider in layout edit mode (resize selected control on the fly).
 
 ## Build
 
