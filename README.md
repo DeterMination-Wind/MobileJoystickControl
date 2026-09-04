@@ -34,13 +34,3 @@ gradle build
 Artifact:
 
 - `build/libs/MobileJoystickControlDesktop.jar`
-
-## Assets
-
-This mod reuses joystick UI assets from:
-
-- `C:\Users\华硕\Downloads\HUD-BE-Joystick_buttons.png`
-
-Derived sprite files are placed under:
-
-- `assets/sprites/`
