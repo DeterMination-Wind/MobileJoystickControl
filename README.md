@@ -6,6 +6,8 @@
   <a href="https://github.com/DeterMination-Wind/MobileJoystickControl"><img src="https://img.shields.io/github/stars/DeterMination-Wind/MobileJoystickControl?style=flat&label=Star%20this%20mod!&color=yellow"></a>
 </h1>
 
+> [NOTE] 若有反馈，请发送反馈到bugsoc@qq.com / If you have any feedback, please send it to bugsoc@qq.com
+
 `移动摇杆操控 / Mobile Joystick Control`
 ![alt text](c57a87c3ab333bfa48fa4775136ec255.jpeg)
 A Mindustry Java client mod that provides Minecraft PE style on-screen controls for player units on mobile:
